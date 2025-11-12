@@ -1,0 +1,37 @@
+{
+  "tests": [
+    {
+      "name": "Create booking with valid data",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "guestName": "Иван Иванов",
+        "guestEmail": "ivan@example.com",
+        "guestPhone": "+79991234567",
+        "roomType": "Стандартный номер",
+        "checkIn": "2024-12-20T00:00:00.000Z",
+        "checkOut": "2024-12-25T00:00:00.000Z",
+        "totalPrice": 25000,
+        "nights": 5
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "bookingId": "number"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Reject booking with missing fields",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "guestName": "Иван Иванов"
+      },
+      "expectedStatus": 400,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

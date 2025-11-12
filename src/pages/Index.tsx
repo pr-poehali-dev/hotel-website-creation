@@ -4,15 +4,23 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
   const [checkIn, setCheckIn] = useState<Date>();
   const [checkOut, setCheckOut] = useState<Date>();
   const [roomType, setRoomType] = useState<string>('');
   const [activeSection, setActiveSection] = useState('home');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [guestName, setGuestName] = useState('');
+  const [guestEmail, setGuestEmail] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
+  const { toast } = useToast();
 
   const rooms = [
     {
@@ -72,11 +80,55 @@ const Index = () => {
     element?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleBooking = () => {
-    if (checkIn && checkOut && roomType) {
-      alert(`Бронирование:\nЗаезд: ${format(checkIn, 'dd.MM.yyyy', { locale: ru })}\nВыезд: ${format(checkOut, 'dd.MM.yyyy', { locale: ru })}\nНомер: ${roomType}`);
-    } else {
-      alert('Пожалуйста, заполните все поля');
+  const handleBooking = async () => {
+    if (!checkIn || !checkOut || !roomType || !guestName || !guestEmail || !guestPhone) {
+      toast({
+        title: 'Ошибка',
+        description: 'Пожалуйста, заполните все поля',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const selectedRoom = rooms.find(r => r.name === roomType);
+    if (!selectedRoom) return;
+
+    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+    const totalPrice = selectedRoom.price * nights;
+
+    try {
+      const response = await fetch('https://functions.poehali.dev/0a8a76de-9d8f-4ef8-87df-5631cd2c4669', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guestName,
+          guestEmail,
+          guestPhone,
+          roomType,
+          checkIn: checkIn.toISOString(),
+          checkOut: checkOut.toISOString(),
+          totalPrice,
+          nights
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        window.location.href = data.paymentUrl;
+      } else {
+        toast({
+          title: 'Ошибка',
+          description: data.error || 'Не удалось создать бронирование',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Ошибка соединения с сервером',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -105,9 +157,43 @@ const Index = () => {
                 </button>
               ))}
             </div>
-            <Button onClick={() => scrollToSection('booking')} className="bg-accent hover:bg-accent/90">
-              Забронировать
-            </Button>
+            <div className="flex items-center gap-4">
+              <Button onClick={() => scrollToSection('booking')} className="hidden md:flex bg-accent hover:bg-accent/90">
+                Забронировать
+              </Button>
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden">
+                    <Icon name="Menu" size={24} />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-64">
+                  <div className="flex flex-col gap-4 mt-8">
+                    {['home', 'rooms', 'services', 'restaurant', 'gallery', 'reviews', 'contacts', 'booking'].map((section) => (
+                      <button
+                        key={section}
+                        onClick={() => {
+                          scrollToSection(section);
+                          setMobileMenuOpen(false);
+                        }}
+                        className={`text-left text-lg font-medium transition-colors hover:text-accent ${
+                          activeSection === section ? 'text-accent' : 'text-foreground'
+                        }`}
+                      >
+                        {section === 'home' && 'Главная'}
+                        {section === 'rooms' && 'Номера'}
+                        {section === 'services' && 'Услуги'}
+                        {section === 'restaurant' && 'Ресторан'}
+                        {section === 'gallery' && 'Галерея'}
+                        {section === 'reviews' && 'Отзывы'}
+                        {section === 'contacts' && 'Контакты'}
+                        {section === 'booking' && 'Бронирование'}
+                      </button>
+                    ))}
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
           </div>
         </div>
       </nav>
@@ -256,6 +342,35 @@ const Index = () => {
           <p className="text-center text-muted-foreground mb-12">Забронируйте номер прямо сейчас</p>
           <Card className="animate-scale-in">
             <CardContent className="p-8">
+              <div className="grid md:grid-cols-3 gap-6 mb-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Имя</label>
+                  <Input
+                    type="text"
+                    placeholder="Иван Иванов"
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Email</label>
+                  <Input
+                    type="email"
+                    placeholder="email@example.com"
+                    value={guestEmail}
+                    onChange={(e) => setGuestEmail(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Телефон</label>
+                  <Input
+                    type="tel"
+                    placeholder="+7 (999) 123-45-67"
+                    value={guestPhone}
+                    onChange={(e) => setGuestPhone(e.target.value)}
+                  />
+                </div>
+              </div>
               <div className="grid md:grid-cols-2 gap-6 mb-6">
                 <div>
                   <label className="block text-sm font-medium mb-2">Дата заезда</label>
@@ -295,14 +410,14 @@ const Index = () => {
                   <SelectContent>
                     {rooms.map((room) => (
                       <SelectItem key={room.id} value={room.name}>
-                        {room.name} - {room.price} ₽
+                        {room.name} - {room.price} ₽/ночь
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <Button onClick={handleBooking} className="w-full bg-accent hover:bg-accent/90" size="lg">
-                Забронировать номер
+                Перейти к оплате
               </Button>
             </CardContent>
           </Card>
